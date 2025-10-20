@@ -1,0 +1,5 @@
+{
+  "name": "Study Compass",
+  "description": "An AI-powered app that provides personalized study method, lecture, and textbook recommendations for students.",
+  "requestFramePermissions": []
+}
