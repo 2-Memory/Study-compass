@@ -40,7 +40,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: 90vh;
+  min-height: 90vh;
   max-height: 800px;
 }
 
@@ -561,6 +561,94 @@ p {
     background-color: #357abd;
 }
 
+/* Login Page Styles */
+.login-container {
+    justify-content: center;
+}
+
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.login-input {
+    width: 100%;
+    padding: 15px;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+.login-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.login-btn {
+    padding: 15px;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 25px;
+    font-size: 0.9rem;
+}
+
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #eee;
+}
+
+.divider:not(:empty)::before {
+    margin-right: .5em;
+}
+
+.divider:not(:empty)::after {
+    margin-left: .5em;
+}
+
+.social-login {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    justify-content: center;
+}
+
+.social-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+}
+
+.social-btn:hover {
+    background-color: #f9f9f9;
+    transform: translateY(-2px);
+}
+
+.social-btn.google { border-color: #ddd; }
+.social-btn.kakao { background-color: #FEE500; color: #191919; border-color: #FEE500;}
+.social-btn.naver { background-color: #03C75A; color: white; border-color: #03C75A;}
+
+
 /* Navigation Bar */
 .nav-bar {
   display: flex;
@@ -581,12 +669,15 @@ p {
   color: #888;
   flex-grow: 1;
   transition: color 0.3s;
+  text-decoration: none;
+  text-align: center;
+  border-top: 3px solid transparent; /* Prevents layout shift on active */
+  padding-top: 17px;
 }
 
 .nav-btn.active {
   color: var(--primary-color);
-  border-top: 3px solid var(--primary-color);
-  padding-top: 17px;
+  border-top-color: var(--primary-color);
 }
 
 @media (max-width: 600px) {
@@ -594,7 +685,7 @@ p {
     padding: 0;
   }
   .app-container {
-    height: 100vh;
+    min-height: 100vh;
     max-height: none;
     border-radius: 0;
   }

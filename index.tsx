@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { GoogleGenAI } from "@google/genai";
 
@@ -82,7 +82,7 @@ const RenderQuestionWithMarkdown = ({ text }) => {
 
 // --- New Habit Checker Component ---
 const HabitChecker = ({ onFinish }) => {
-    const [step, setStep] = useState('quiz'); // welcome, quiz, loading, result
+    const [step, setStep] = useState('quiz'); // quiz, loading, result
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [scores, setScores] = useState({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0 });
     const [result, setResult] = useState(null);
@@ -309,20 +309,306 @@ const StudyCompass = ({ onFinish }) => {
   return renderContent();
 };
 
-// --- Placeholder for Planner Component ---
-const Planner = () => {
+// --- Page Components ---
+
+const PlannerPage = ({ userName }) => {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FED766', '#9B59B6', '#34495E', '#16A085', '#F39C12'];
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [dailyData, setDailyData] = useState({});
+    const [view, setView] = useState('week');
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [selectedColor, setSelectedColor] = useState(colors[0]);
+    const [newTodoTexts, setNewTodoTexts] = useState({});
+    const [editingCategoryId, setEditingCategoryId] = useState(null);
+    const [editingCategoryData, setEditingCategoryData] = useState({ name: '', color: '' });
+    const [editingTodoId, setEditingTodoId] = useState(null);
+    const [editingTodoText, setEditingTodoText] = useState('');
+
+    const formatDateKey = (date) => date.toISOString().split('T')[0];
+
+    useEffect(() => {
+        try {
+            const savedData = localStorage.getItem('plannerData');
+            if (savedData) setDailyData(JSON.parse(savedData));
+        } catch (error) {
+            console.error("Failed to load planner data", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('plannerData', JSON.stringify(dailyData));
+        } catch (error) {
+            console.error("Failed to save planner data", error);
+        }
+    }, [dailyData]);
+    
+    const updateData = (updater) => {
+        setDailyData(updater);
+    };
+
+    const handleAddCategory = (e) => {
+        e.preventDefault();
+        if (!newCategoryName.trim()) return;
+        const dateKey = formatDateKey(selectedDate);
+        const newCategory = { id: Date.now().toString(), name: newCategoryName.trim(), color: selectedColor, todos: [] };
+        updateData(prev => {
+            const dayData = prev[dateKey] || { categories: [] };
+            return { ...prev, [dateKey]: { ...dayData, categories: [...dayData.categories, newCategory] }};
+        });
+        setNewCategoryName('');
+        setSelectedColor(colors[0]);
+    };
+
+    const handleDeleteCategory = (categoryId) => {
+        const dateKey = formatDateKey(selectedDate);
+        updateData(prev => {
+            const categories = prev[dateKey]?.categories.filter(c => c.id !== categoryId) || [];
+            return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+    };
+    
+    const handleUpdateCategory = () => {
+        const dateKey = formatDateKey(selectedDate);
+         updateData(prev => {
+            const categories = prev[dateKey]?.categories.map(c => 
+                c.id === editingCategoryId ? { ...c, name: editingCategoryData.name, color: editingCategoryData.color } : c
+            ) || [];
+            return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+        setEditingCategoryId(null);
+    };
+
+    const handleAddTodo = (categoryId) => {
+        const text = newTodoTexts[categoryId]?.trim();
+        if (!text) return;
+        const dateKey = formatDateKey(selectedDate);
+        updateData(prev => {
+            const categories = prev[dateKey]?.categories.map(cat => {
+                if (cat.id === categoryId) {
+                    const newTodo = { id: Date.now().toString(), text, completed: false };
+                    return { ...cat, todos: [...cat.todos, newTodo] };
+                }
+                return cat;
+            }) || [];
+             return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+        setNewTodoTexts(prev => ({ ...prev, [categoryId]: '' }));
+    };
+    
+    const handleToggleTodo = (categoryId, todoId) => {
+        const dateKey = formatDateKey(selectedDate);
+        updateData(prev => {
+            const categories = prev[dateKey]?.categories.map(cat => {
+                if (cat.id === categoryId) {
+                    const todos = cat.todos.map(todo => 
+                        todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
+                    );
+                    return { ...cat, todos };
+                }
+                return cat;
+            }) || [];
+            return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+    };
+
+    const handleDeleteTodo = (categoryId, todoId) => {
+        const dateKey = formatDateKey(selectedDate);
+        updateData(prev => {
+            const categories = prev[dateKey]?.categories.map(cat => {
+                 if (cat.id === categoryId) {
+                    return { ...cat, todos: cat.todos.filter(t => t.id !== todoId) };
+                }
+                return cat;
+            }) || [];
+            return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+    };
+    
+    const handleUpdateTodo = (categoryId) => {
+        const dateKey = formatDateKey(selectedDate);
+        updateData(prev => {
+            const categories = prev[dateKey]?.categories.map(cat => {
+                if (cat.id === categoryId) {
+                    const todos = cat.todos.map(todo => 
+                        todo.id === editingTodoId ? { ...todo, text: editingTodoText } : todo
+                    );
+                    return { ...cat, todos };
+                }
+                return cat;
+            }) || [];
+            return { ...prev, [dateKey]: { ...prev[dateKey], categories } };
+        });
+        setEditingTodoId(null);
+    };
+
+    const startEditCategory = (category) => {
+        setEditingCategoryId(category.id);
+        setEditingCategoryData({ name: category.name, color: category.color });
+    };
+
+    const startEditTodo = (todo) => {
+        setEditingTodoId(todo.id);
+        setEditingTodoText(todo.text);
+    };
+
+    const dateKey = formatDateKey(selectedDate);
+    const categoriesForSelectedDate = dailyData[dateKey]?.categories || [];
+    
+    // Calendar rendering logic
+    const renderCalendar = () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (view === 'week') {
+        const weekDays = [];
+        let startDate = new Date(selectedDate);
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week (Sunday)
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(startDate);
+          day.setDate(day.getDate() + i);
+          weekDays.push(day);
+        }
+
+        return (
+          <div className="week-calendar">
+            {weekDays.map(day => {
+              const isSelected = formatDateKey(day) === formatDateKey(selectedDate);
+              const isToday = formatDateKey(day) === formatDateKey(today);
+              return (
+                <div key={day} onClick={() => setSelectedDate(day)} className={`day-item ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}>
+                  <div className="day-name">{['일', '월', '화', '수', '목', '금', '토'][day.getDay()]}</div>
+                  <div className="date-number">{day.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      } else { // Month view
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const monthDays = Array.from({ length: firstDayOfMonth }, () => null)
+          .concat(Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)));
+        
+        return (
+          <div className="month-calendar">
+            <div className="month-calendar-header">
+              {['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day}>{day}</div>)}
+            </div>
+            <div className="month-calendar-grid">
+              {monthDays.map((day, index) => (
+                day ? (
+                  <div key={index} onClick={() => setSelectedDate(day)} className={`month-day-cell ${formatDateKey(day) === formatDateKey(selectedDate) ? 'selected' : ''} ${formatDateKey(day) === formatDateKey(today) ? 'today' : ''}`}>
+                    <span className="date-number-month">{day.getDate()}</span>
+                  </div>
+                ) : <div key={index} className="month-day-cell empty"></div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+    };
+    
     return (
         <div className="content planner-container">
-             <div className="planner-header">
-                 <h2>학습 플래너</h2>
+            <div className="planner-header">
+                <button className="planner-title" onClick={() => setView(view === 'week' ? 'month' : 'week')}>
+                    <h2>{userName}님의 학습 플래너 🗓️</h2>
+                </button>
             </div>
-            <p>학습 플래너 기능이 여기에 표시됩니다.</p>
+            {renderCalendar()}
+            <div className="category-list">
+                {categoriesForSelectedDate.map(category => (
+                    <div key={category.id} className="category-card" style={{ borderLeftColor: category.color }}>
+                        <div className="category-header">
+                            {editingCategoryId === category.id ? (
+                                <div className="category-edit-container">
+                                    <input 
+                                        type="text" 
+                                        value={editingCategoryData.name} 
+                                        onChange={(e) => setEditingCategoryData({...editingCategoryData, name: e.target.value})}
+                                        className="edit-input"
+                                        onBlur={handleUpdateCategory}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateCategory()}
+                                        autoFocus
+                                    />
+                                    <div className="color-palette edit-palette">
+                                        {colors.map(color => (
+                                            <div key={color} className={`color-dot ${editingCategoryData.color === color ? 'selected' : ''}`} style={{ backgroundColor: color }} onClick={() => setEditingCategoryData({...editingCategoryData, color})}></div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <h3>{category.name}</h3>
+                                    <div className="item-actions">
+                                        <button onClick={() => startEditCategory(category)}>✏️</button>
+                                        <button onClick={() => handleDeleteCategory(category.id)}>🗑️</button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <ul className="todo-list">
+                           {category.todos.map(todo => (
+                               <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+                                   <div className="todo-checkbox" style={{ borderColor: category.color, backgroundColor: todo.completed ? category.color : 'transparent' }} onClick={() => handleToggleTodo(category.id, todo.id)}>
+                                       {todo.completed && '✓'}
+                                   </div>
+                                   {editingTodoId === todo.id ? (
+                                        <input 
+                                            type="text" 
+                                            value={editingTodoText}
+                                            onChange={(e) => setEditingTodoText(e.target.value)}
+                                            className="edit-input todo-edit-input"
+                                            onBlur={() => handleUpdateTodo(category.id)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateTodo(category.id)}
+                                            autoFocus
+                                        />
+                                   ) : (
+                                       <>
+                                           <span>{todo.text}</span>
+                                            <div className="item-actions todo-actions">
+                                                <button onClick={() => startEditTodo(todo)}>✏️</button>
+                                                <button onClick={() => handleDeleteTodo(category.id, todo.id)}>🗑️</button>
+                                            </div>
+                                       </>
+                                   )}
+                               </li>
+                           ))}
+                        </ul>
+                         <form className="add-todo-form" onSubmit={(e) => { e.preventDefault(); handleAddTodo(category.id); }}>
+                             <input 
+                                 type="text" 
+                                 placeholder="할 일 추가..." 
+                                 value={newTodoTexts[category.id] || ''} 
+                                 onChange={(e) => setNewTodoTexts({...newTodoTexts, [category.id]: e.target.value })} 
+                             />
+                             <button type="submit" className="add-todo-btn">+</button>
+                         </form>
+                    </div>
+                ))}
+            </div>
+            <form className="add-category-form" onSubmit={handleAddCategory}>
+                <div className="color-palette">
+                    {colors.map(color => (
+                        <div key={color} className={`color-dot ${selectedColor === color ? 'selected' : ''}`} style={{ backgroundColor: color }} onClick={() => setSelectedColor(color)}></div>
+                    ))}
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="새 카테고리 추가" 
+                    value={newCategoryName} 
+                    onChange={(e) => setNewCategoryName(e.target.value)} 
+                />
+                <button type="submit" className="btn">추가</button>
+            </form>
         </div>
     );
 };
 
-// --- New Diagnostic Hub to select a tool ---
-const DiagnosticHub = () => {
+const DiagnosticPage = () => {
     const [activeTool, setActiveTool] = useState(null); // null | 'habit' | 'compass'
 
     const handleFinish = () => setActiveTool(null);
@@ -354,26 +640,99 @@ const DiagnosticHub = () => {
     );
 };
 
+const GoogleIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25C22.56 11.45 22.49 10.68 22.36 9.93H12V14.5H18.05C17.76 16.07 16.92 17.43 15.65 18.29V21.09H19.64C21.58 19.29 22.56 16.03 22.56 12.25Z" fill="#4285F4"/>
+        <path d="M12 23C15.24 23 17.95 21.92 19.64 20.09L15.65 17.29C14.58 18.05 13.39 18.5 12 18.5C9.28 18.5 6.94 16.71 6.09 14.12H2.02V16.99C3.93 20.62 7.7 23 12 23Z" fill="#34A853"/>
+        <path d="M6.09 14.12C5.87 13.44 5.73 12.73 5.73 12C5.73 11.27 5.87 10.56 6.09 9.88V7.01L2.02 4.02C1.04 5.92 0.5 8.16 0.5 10.5C0.5 12.84 1.04 15.08 2.02 16.98L6.09 14.12Z" fill="#FBBC05"/>
+        <path d="M12 5.5C13.56 5.5 14.95 6.05 16.03 7.09L19.71 3.41C17.95 1.73 15.24 0.5 12 0.5C7.7 0.5 3.93 2.88 2.02 6.51L6.09 9.38C6.94 6.79 9.28 5.5 12 5.5Z" fill="#EA4335"/>
+    </svg>
+);
 
-// --- Main App Component ---
+const NaverIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11.25 10.125V16.5H6.75V1.5H11.25V10.125Z" fill="white"/>
+        <path d="M6.75 10.125L11.25 1.5H15.75V16.5H11.25L6.75 10.125Z" fill="white"/>
+    </svg>
+);
+
+
+const LoginPage = ({ onLogin }) => {
+    const [name, setName] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (name.trim()) {
+            onLogin(name.trim());
+        }
+    };
+
+    return (
+        <div className="app-container">
+            <div className="content login-container">
+                 <h1>AI 스터디 나침반</h1>
+                 <p>로그인하고 맞춤 학습 전략을<br />확인해보세요.</p>
+                <form onSubmit={handleSubmit} className="login-form">
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="이름(닉네임)을 입력하세요"
+                        className="login-input"
+                        required
+                    />
+                    <button type="submit" className="btn login-btn">시작하기</button>
+                </form>
+                <div className="divider">
+                    <span>또는</span>
+                </div>
+                <div className="social-login">
+                    <button className="social-btn google" aria-label="Google 계정으로 시작"><GoogleIcon /></button>
+                    <button className="social-btn kakao" aria-label="Kakao 계정으로 시작"><i className="fas fa-comment"></i></button>
+                    <button className="social-btn naver" aria-label="Naver 계정으로 시작"><NaverIcon /></button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const App = () => {
-  const [nav, setNav] = useState('diagnostic'); // 'diagnostic' | 'planner'
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [currentPage, setCurrentPage] = useState('diagnostic'); // 'diagnostic' or 'planner'
+
+  const handleLogin = (name) => {
+      setIsLoggedIn(true);
+      setUserName(name);
+  };
+
+  if (!isLoggedIn) {
+      return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <div className="app-container">
-      {nav === 'diagnostic' && <DiagnosticHub />}
-      {nav === 'planner' && <Planner />}
-      <nav className="nav-bar">
-        <button className={`nav-btn ${nav === 'diagnostic' ? 'active' : ''}`} onClick={() => setNav('diagnostic')}>
-          AI 진단
-        </button>
-        <button className={`nav-btn ${nav === 'planner' ? 'active' : ''}`} onClick={() => setNav('planner')}>
-          플래너
-        </button>
-      </nav>
+        {currentPage === 'diagnostic' && <DiagnosticPage />}
+        {currentPage === 'planner' && <PlannerPage userName={userName} />}
+        
+        <nav className="nav-bar">
+            <button 
+                onClick={() => setCurrentPage('diagnostic')} 
+                className={`nav-btn ${currentPage === 'diagnostic' ? 'active' : ''}`}
+            >
+                AI 진단
+            </button>
+            <button 
+                onClick={() => setCurrentPage('planner')} 
+                className={`nav-btn ${currentPage === 'planner' ? 'active' : ''}`}
+            >
+                플래너
+            </button>
+        </nav>
     </div>
   );
 };
+
 
 const root = createRoot(document.getElementById("root"));
 root.render(<App />);
